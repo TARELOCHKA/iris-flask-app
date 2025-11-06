@@ -4,7 +4,11 @@ import joblib, json, os
 from functools import wraps
 from base64 import b64decode
 
-app = Flask(__name__, template_folder="templates", static_folder="static")
+
+app = Flask(
+    __name__, template_folder=os.path.join(os.path.dirname(__file__), "templates")
+)
+
 
 model = joblib.load("models/iris_clf.joblib")
 metadata = json.load(open("models/metadata.json", encoding="utf-8"))
