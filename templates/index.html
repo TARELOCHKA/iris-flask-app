@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Iris Predictor</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: url("https://upload.wikimedia.org/wikipedia/commons/4/41/Iris_versicolor_3.jpg") no-repeat center center fixed;
+    background-size: cover;
+    margin: 0;
+    padding: 0;
+    color: #333;
+  }
+  .overlay {
+    background: rgba(255, 255, 255, 0.85);
+    min-height: 100vh;
+    padding: 40px 0;
+  }
+  h1 {
+    text-align: center;
+    margin-top: 0;
+    color: #4a4a4a;
+  }
+  .container {
+    max-width: 420px;
+    margin: 40px auto;
+    padding: 30px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+  }
+  label {
+    display: block;
+    margin-top: 15px;
+    font-weight: 500;
+  }
+  input[type="number"],
+  input[type="text"],
+  input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    margin-top: 6px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+  }
+  input:focus {
+    border-color: #4a90e2;
+    outline: none;
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 25px;
+    background-color: #4a90e2;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  button:hover {
+    background-color: #357ab7;
+  }
+  .show-pass {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+  }
+  .result-box {
+    margin-top: 30px;
+    padding: 15px;
+    background: #f0f4f8;
+    border-radius: 8px;
+    border: 1px solid #d9e2ec;
+    font-size: 16px;
+    font-weight: 500;
+    text-align: center;
+  }
+  .hidden { display: none; }
+  footer {
+    text-align: center;
+    margin: 40px 0 0;
+    color: #777;
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+<div class="overlay">
+  <h1>Iris Predictor</h1>
+
+  <!-- 1. Блок авторизации -->
+  <div class="container" id="auth-box">
+    <form id="auth-form">
+      <label>Логин
+        <input id="login" type="text" value="student" required>
+      </label>
+      <label>Пароль
+        <input id="password" type="password" value="password" required>
+      </label>
+      <div class="show-pass">
+        <input type="checkbox" id="togglePass">
+        <label for="togglePass" style="margin-top:0;">Показать пароль</label>
+      </div>
+      <button type="submit">Войти</button>
+    </form>
+    <div id="auth-message" class="result-box hidden"></div>
+  </div>
+
+  <!-- 2. Блок ввода данных -->
+  <div class="container hidden" id="predict-box">
+    <form id="predict-form">
+      <label>Sepal Length (см)
+        <input id="sl" type="number" step="0.1" value="5.1" required>
+      </label>
+      <label>Sepal Width (см)
+        <input id="sw" type="number" step="0.1" value="3.5" required>
+      </label>
+      <label>Petal Length (см)
+        <input id="pl" type="number" step="0.1" value="1.4" required>
+      </label>
+      <label>Petal Width (см)
+        <input id="pw" type="number" step="0.1" value="0.2" required>
+      </label>
+      <button type="submit">Predict</button>
+    </form>
+
+    <div class="result-box" id="best-result">Результат появится здесь…</div>
+  </div>
+
+  <footer>
+    © 2025 Iris Predictor — powered by Flask & scikit-learn
+  </footer>
+</div>
+
+<script>
+  const authForm = document.getElementById('auth-form');
+  const authBox = document.getElementById('auth-box');
+  const authMessage = document.getElementById('auth-message');
+  const predictBox = document.getElementById('predict-box');
+  const predictForm = document.getElementById('predict-form');
+  const best = document.getElementById('best-result');
+  const togglePass = document.getElementById('togglePass');
+  const passwordInput = document.getElementById('password');
+
+  let authToken = null;
+
+  // Показать/скрыть пароль
+  togglePass.addEventListener('change', () => {
+    passwordInput.type = togglePass.checked ? 'text' : 'password';
+  });
+
+  // Авторизация
+  authForm.onsubmit = async (e) => {
+    e.preventDefault();
+    authMessage.classList.add('hidden');
+    authMessage.textContent = 'Проверка… ⏳';
+
+    const user = document.getElementById('login').value;
+    const pass = passwordInput.value;
+    const token = btoa(user + ":" + pass);
+
+    try {
+      const res = await fetch("/health", {
+        headers: { "Authorization": "Basic " + token }
+      });
+      if (res.ok) {
+        authToken = token;
+        authBox.classList.add('hidden');
+        predictBox.classList.remove('hidden');
+      } else {
+        authMessage.classList.remove('hidden');
+        authMessage.textContent = "Неверный логин или пароль.";
+      }
+    } catch (err) {
+      authMessage.classList.remove('hidden');
+      authMessage.textContent = "Ошибка соединения: " + err;
+    }
+  };
+
+  // Предсказание
+  predictForm.onsubmit = async (e) => {
+    e.preventDefault();
+    best.textContent = 'Предсказание… ⏳';
+
+    const payload = {
+      sepal_length: +sl.value,
+      sepal_width: +sw.value,
+      petal_length: +pl.value,
+      petal_width: +pw.value
+    };
+
+    try {
+      const res = await fetch("/predict", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Basic " + authToken
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        best.textContent = "Ошибка: " + res.status + " " + res.statusText;
+        return;
+      }
+
+      const json = await res.json();
+      // Находим наиболее вероятный класс
+      const proba = json.proba;
+      const bestClass = Object.keys(proba)
+        .reduce((a, b) => proba[a] > proba[b] ? a : b);
+      const bestProb = (proba[bestClass] * 100).toFixed(1);
+      best.textContent = `Наиболее вероятный вид ириса: ${bestClass} (${bestProb}%)`;
+
+    } catch (err) {
+      best.textContent = "Ошибка соединения: " + err;
+    }
+  };
+</script>
+</body>
+</html>
